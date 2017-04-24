@@ -93,6 +93,9 @@ public:
     int splitterPosition() const;
     void setSplitterPosition(int position);
 
+    void collapseAll();
+    void expandAll();
+
     void setExpanded(QtBrowserItem *item, bool expanded);
     bool isExpanded(QtBrowserItem *item) const;
 

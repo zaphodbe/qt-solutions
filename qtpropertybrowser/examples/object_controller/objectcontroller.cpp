@@ -219,6 +219,7 @@ void ObjectControllerPrivate::addClassProperties(const QMetaObject *metaObject)
         return;
 
     addClassProperties(metaObject->superClass());
+    ((QtTreePropertyBrowser*) m_browser)->collapseAll();
 
     QtProperty *classProperty = m_classToProperty.value(metaObject);
     if (!classProperty) {
@@ -340,7 +341,8 @@ ObjectController::ObjectController(QWidget *parent)
     scroll->setWidget(d_ptr->m_browser);
 */
     QtTreePropertyBrowser *browser = new QtTreePropertyBrowser(this);
-    browser->setRootIsDecorated(false);
+//    browser->setRootIsDecorated(false);
+    browser->setRootIsDecorated(true);
     d_ptr->m_browser = browser;
     QVBoxLayout *layout = new QVBoxLayout(this);
     layout->setMargin(0);

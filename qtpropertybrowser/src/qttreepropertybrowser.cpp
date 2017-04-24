@@ -915,6 +915,28 @@ void QtTreePropertyBrowser::setSplitterPosition(int position)
 }
 
 /*!
+    Collapses all items.
+
+    \sa isExpanded(), expanded(), collapsed()
+*/
+
+void QtTreePropertyBrowser::collapseAll()
+{
+        d_ptr->m_treeWidget->collapseAll();
+}
+
+/*!
+    Expands all items.
+
+    \sa isExpanded(), expanded(), collapsed()
+*/
+
+void QtTreePropertyBrowser::expandAll()
+{
+        d_ptr->m_treeWidget->expandAll();
+}
+
+/*!
     Sets the \a item to either collapse or expanded, depending on the value of \a expanded.
 
     \sa isExpanded(), expanded(), collapsed()
