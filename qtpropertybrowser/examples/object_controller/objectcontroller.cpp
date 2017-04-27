@@ -54,8 +54,8 @@ class ObjectControllerPrivate
     Q_DECLARE_PUBLIC(ObjectController)
 public:
 
-    void addClassProperties(const QMetaObject *metaObject);
-    void updateClassProperties(const QMetaObject *metaObject, bool recursive);
+    void addClassProperties(const QMetaObject *metaObject, bool dynamic = false);
+    void updateClassProperties(const QMetaObject *metaObject, bool recursive, bool dynamic = false);
     void saveExpandedState();
     void restoreExpandedState();
     void slotValueChanged(QtProperty *property, const QVariant &value);
@@ -72,6 +72,7 @@ public:
     QMap<QtProperty *, const QMetaObject *> m_propertyToClass;
     QMap<QtProperty *, int>     m_propertyToIndex;
     QMap<const QMetaObject *, QMap<int, QtVariantProperty *> > m_classToIndexToProperty;
+    QMap<QByteArray, QtVariantProperty *> m_dynamicToProperty;
 
     QMap<QtProperty *, bool>    m_propertyToExpanded;
 
@@ -183,7 +184,7 @@ int ObjectControllerPrivate::intToFlag(const QMetaEnum &metaEnum, int intValue) 
     return flagValue;
 }
 
-void ObjectControllerPrivate::updateClassProperties(const QMetaObject *metaObject, bool recursive)
+void ObjectControllerPrivate::updateClassProperties(const QMetaObject *metaObject, bool recursive, bool dynamic)
 {
     if (!metaObject)
         return;
@@ -211,9 +212,47 @@ void ObjectControllerPrivate::updateClassProperties(const QMetaObject *metaObjec
             }
         }
     }
+
+    if (dynamic) {
+        QList<QByteArray> oldProperties = m_dynamicToProperty.keys();
+        QList<QByteArray> dynamicProperties = m_object->dynamicPropertyNames();
+
+        foreach(QByteArray propertyName, dynamicProperties) {
+            QtVariantProperty *subProperty = 0;
+            QVariant variant = m_object->property(propertyName);
+            int type = variant.userType();
+            subProperty = m_dynamicToProperty[propertyName];
+
+            if (m_manager->isPropertyTypeSupported(type)) {
+                if (!subProperty || subProperty->valueType() != type) {
+                    m_browser->removeProperty(subProperty);
+                    subProperty = m_manager->addProperty(type, QLatin1String(propertyName));
+                    classProperty->addSubProperty(subProperty);
+                    m_dynamicToProperty[propertyName] = subProperty;
+                }
+                subProperty->setValue(variant);
+            } else {
+                if (!subProperty || subProperty->valueType() != type) {
+                    m_browser->removeProperty(subProperty);
+                    subProperty = m_readOnlyManager->addProperty(QVariant::String, QLatin1String(propertyName));
+                    subProperty->setValue(QLatin1String("< Unknown Type >"));
+                    subProperty->setEnabled(false);
+                    classProperty->addSubProperty(subProperty);
+                    m_dynamicToProperty[propertyName] = subProperty;
+                }
+            }
+
+            oldProperties.removeOne(propertyName);
+        }
+
+        foreach(QByteArray propertyName, oldProperties) {
+            QtVariantProperty *subProperty = m_dynamicToProperty[propertyName];
+            m_browser->removeProperty(subProperty);
+        }
+    }
 }
 
-void ObjectControllerPrivate::addClassProperties(const QMetaObject *metaObject)
+void ObjectControllerPrivate::addClassProperties(const QMetaObject *metaObject, bool dynamic)
 {
     if (!metaObject)
         return;
@@ -282,8 +321,29 @@ void ObjectControllerPrivate::addClassProperties(const QMetaObject *metaObject)
             m_propertyToIndex[subProperty] = idx;
             m_classToIndexToProperty[metaObject][idx] = subProperty;
         }
+
+        if (dynamic) {
+            QList<QByteArray> dynamicProperties = m_object->dynamicPropertyNames();
+
+            foreach(QByteArray propertyName, dynamicProperties) {
+                QtVariantProperty *subProperty = 0;
+                QVariant variant = m_object->property(propertyName);
+                int type = variant.userType();
+
+                if (m_manager->isPropertyTypeSupported(type)) {
+                    subProperty = m_manager->addProperty(type, QLatin1String(propertyName));
+                    subProperty->setValue(variant);
+                } else {
+                    subProperty = m_readOnlyManager->addProperty(QVariant::String, QLatin1String(propertyName));
+                    subProperty->setValue(QLatin1String("< Unknown Type >"));
+                    subProperty->setEnabled(false);
+                }
+                classProperty->addSubProperty(subProperty);
+                m_dynamicToProperty[propertyName] = subProperty;
+            }
+        }
     } else {
-        updateClassProperties(metaObject, false);
+        updateClassProperties(metaObject, false, dynamic);
     }
 
     m_topLevelProperties.append(classProperty);
@@ -302,8 +362,10 @@ void ObjectControllerPrivate::restoreExpandedState()
 
 void ObjectControllerPrivate::slotValueChanged(QtProperty *property, const QVariant &value)
 {
-    if (!m_propertyToIndex.contains(property))
+    if (!m_propertyToIndex.contains(property)) {
+        m_object->setProperty(property->propertyName().toLocal8Bit(),value);
         return;
+    }
 
     int idx = m_propertyToIndex.value(property);
 
@@ -381,7 +443,7 @@ void ObjectController::setObject(QObject *object)
     if (!d_ptr->m_object)
         return;
 
-    d_ptr->addClassProperties(d_ptr->m_object->metaObject());
+    d_ptr->addClassProperties(d_ptr->m_object->metaObject(), true);
 
     d_ptr->restoreExpandedState();
 }
