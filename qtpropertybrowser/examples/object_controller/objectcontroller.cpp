@@ -371,16 +371,25 @@ void ObjectControllerPrivate::slotValueChanged(QtProperty *property, const QVari
 
     const QMetaObject *metaObject = m_object->metaObject();
     QMetaProperty metaProperty = metaObject->property(idx);
-    if (metaProperty.isEnumType()) {
-        if (metaProperty.isFlagType())
-            metaProperty.write(m_object, intToFlag(metaProperty.enumerator(), value.toInt()));
-        else
-            metaProperty.write(m_object, intToEnum(metaProperty.enumerator(), value.toInt()));
-    } else {
-        metaProperty.write(m_object, value);
-    }
+    QVariant oldValue = metaProperty.read(m_object);
 
-    updateClassProperties(metaObject, true);
+    if (value != oldValue) {
+        if (metaProperty.isEnumType()) {
+            if (metaProperty.isFlagType())
+                metaProperty.write(m_object, intToFlag(metaProperty.enumerator(), value.toInt()));
+            else
+                metaProperty.write(m_object, intToEnum(metaProperty.enumerator(), value.toInt()));
+        } else {
+            metaProperty.write(m_object, value);
+        }
+
+        QStringList saveList = m_object->property("__saveList").toStringList();
+        if (!saveList.contains(property->propertyName()))
+            saveList << property->propertyName();
+        m_object->setProperty("__saveList", saveList);
+
+        updateClassProperties(metaObject, true);
+    }
 }
 
 ///////////////////
